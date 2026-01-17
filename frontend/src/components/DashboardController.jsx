@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useStore } from "@nanostores/react";
 import {
   fetchTelemetry,
