@@ -73,6 +73,7 @@ fastify.post(
         httpOnly: true,
         secure: process.env.NODE_ENV === "production", // Set true in Prod
         sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+        partitioned: process.env.NODE_ENV === "production", // Support CHIPS for Incognito/Cross-site
         maxAge: 7776000, // 90 days (Long sessions)
       };
 
@@ -147,6 +148,7 @@ const syncCookies = (reply, api) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      partitioned: process.env.NODE_ENV === "production",
       maxAge: 86400,
     });
   }
@@ -156,6 +158,7 @@ const syncCookies = (reply, api) => {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "lax",
+      partitioned: process.env.NODE_ENV === "production",
       maxAge: 7776000,
     });
   }

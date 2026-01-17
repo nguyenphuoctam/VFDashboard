@@ -1,39 +1,33 @@
 ---
 import VehicleHeader from '../components/VehicleHeader.jsx';
-
 import CarStatus from '../components/CarStatus.jsx';
 import ControlGrid from '../components/ControlGrid.jsx';
 import DigitalTwin from '../components/DigitalTwin.jsx';
 import DashboardController from '../components/DashboardController.jsx';
 import SystemHealth from '../components/SystemHealth.jsx';
+import AuthGate from '../components/AuthGate.jsx';
+import Layout from '../layouts/Layout.astro';
 import '../styles/global.css';
 
-// Server-Side Logic
-import Layout from '../layouts/Layout.astro';
-
-// Note: In a cross-subdomain deployment like Render, the frontend server
-// cannot access cookies set by the backend domain. 
 // Authentication is handled client-side by DashboardController.
 const vin = ''; 
 ---
 
 <Layout title="VinFast Dashboard">
+    <!-- Dashboard Controller for Polling -->
+    <DashboardController client:load vin={vin} />
 
-        <!-- Dashboard Controller for Polling -->
-        <DashboardController client:load vin={vin} />
-
+    <AuthGate client:load>
         <!-- Main Bento Grid Layout -->
-		<div class="max-w-7xl mx-auto p-4 space-y-6">
+        <div class="max-w-7xl mx-auto p-4 space-y-6">
             <header>
                 <VehicleHeader client:load />
             </header>
 
             <main class="grid grid-cols-1 md:grid-cols-12 gap-6 h-auto md:h-[800px]">
-                
                 {/* Left Column: Battery & Power (Module C) - Span 3 */}
                 <div class="md:col-span-3 flex flex-col gap-3 h-auto md:h-full">
                     <CarStatus client:load />
-                    
                     {/* Module E: System Health Portal */}
                     <div class="md:flex-1 h-auto">
                         <SystemHealth client:only="react" />
@@ -42,7 +36,6 @@ const vin = '';
 
                 {/* Center Column: Digital Twin (Module B) - Span 6 */}
                 <div class="md:col-span-6 relative bg-gray-800/10 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-sm overflow-hidden">
-                   <!-- Import Digital Twin here -->
                    <DigitalTwin client:load />
                 </div>
 
@@ -50,7 +43,7 @@ const vin = '';
                 <div class="md:col-span-3">
                      <ControlGrid client:load />
                 </div>
-
             </main>
         </div>
+    </AuthGate>
 </Layout>

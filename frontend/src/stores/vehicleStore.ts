@@ -103,6 +103,7 @@ export interface VehicleState {
 
   lastUpdated: number;
   isRefreshing?: boolean;
+  isInitialized?: boolean;
 }
 
 // Demo Mode / Default State
@@ -188,6 +189,7 @@ export const vehicleStore = map<VehicleState>({
 
   lastUpdated: Date.now(),
   isRefreshing: false,
+  isInitialized: false,
 });
 
 export const updateVehicleData = (data: Partial<VehicleState>) => {
@@ -369,6 +371,9 @@ export const fetchTelemetry = async (vin: string) => {
     console.error("Telemetry Refresh Error", e);
   } finally {
     vehicleStore.setKey("isRefreshing", false);
+    if (!vehicleStore.get().isInitialized) {
+      vehicleStore.setKey("isInitialized", true);
+    }
   }
 };
 
