@@ -1,5 +1,8 @@
 require("dotenv").config();
-const fastify = require("fastify")({ logger: true });
+const fastify = require("fastify")({
+  logger: true,
+  trustProxy: true, // Required for Render/Cloud Proxies to forward Headers correctly
+});
 const cookie = require("@fastify/cookie");
 const cors = require("@fastify/cors");
 const { DEFAULT_REGION } = require("./lib/config");
