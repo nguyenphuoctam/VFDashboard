@@ -10,7 +10,6 @@ if (API_BASE_URL && !API_BASE_URL.startsWith("http")) {
   API_BASE_URL = `https://${API_BASE_URL}`;
 }
 
-
 export const ENDPOINTS = {
   LOGIN: `${API_BASE_URL}/api/login`,
   USER: `${API_BASE_URL}/api/user`,
