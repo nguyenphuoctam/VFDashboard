@@ -23,6 +23,7 @@
 | **Odometer** | `34183` | `1` | `3` | `43177.297` (km) | Total distance traveled |
 | **Gear** | `34183` | `1` | `1` | `P` | Current Gear Position (P, R, N, D) |
 | **Speed** | `34183` | `1` | `2` | `0` (km/h) | Current Vehicle Speed |
+| **Ignition** | `34183` | `1` | `58` | `1` (On) | Ignition status (0=Off, 1=On) |
 
 ### 1.3 Tires (TPMS)
 **Base Object ID**: `34183`
@@ -41,16 +42,15 @@
 | :--- | :--- | :--- | :--- |
 | **Latitude** | `LOCATION_LATITUDE` | `0` | GPS Latitude |
 | **Longitude** | `LOCATION_LONGITUDE` | `1` | GPS Longitude |
-| **Heading** | `LOCATION_BEARING_DEGREE` | `11` | Heading in degrees |
+| **Heading** | `LOCATION_BEARING_DEGREE` | `11` | Heading in degrees (0 = North) |
 | **GPS Status** | `LOCATION_GNSS_STATUS` | `10` | Signal quality/fix status |
 
 ### 1.5 Climate & Environment
 | Metric | Alias Key | Path | Description |
 | :--- | :--- | :--- | :--- |
 | **Outside Temp** | `VEHICLE_STATUS_AMBIENT_TEMPERATURE` | `/34183/1/7` | Ambient Air Temperature (C) |
-| **Inside Temp** | `CLIMATE_INFORMATION_DRIVER_TEMPERATURE` | `/34184/1/6` | Driver Set Temperature |
-| **Passenger Temp** | `CLIMATE_INFORMATION_PASSENGER_TEMPERATURE` | `/34184/1/7` | Passenger Set Temperature |
-| **Fan Level** | `CLIMATE_INFORMATION_AIR_CONDITION` | `/34184/1/42` | AC Fan Speed Level |
+| **Inside Temp** | `VEHICLE_STATUS_INTERIOR_TEMPERATURE` | `/34183/1/56` | Current Cabin Temperature (C) |
+| **Fan Level** | `CLIMATE_INFORMATION_FAN_SPEED` | `/34184/1/42` | AC Fan Speed Level |
 | **AC Status** | `CLIMATE_CONTROL_AC_CONTROL_STATUS` | `/34199/1/16` | AC System On/Off |
 | **Defrost** | `CLIMATE_INFORMATION_FRONT_DEFROST` | `/34184/1/9` | Front Defrost Status |
 
@@ -82,9 +82,12 @@ The system tracks detailed versioning for key Electronic Control Units (ECUs).
 
 ## 3. Extended / Future Data Points
 
-### 3.1 Doors, Windows & Locks
+### 3.1 Doors, Security & Locks
+The system monitors lock status from two authoritative sources for better reliability.
+
 | Metric | Path | Status Logic |
 | :--- | :--- | :--- |
+| `CENTRAL_LOCK_STATUS` | `/34183/1/81` | 1 = Locked, 0 = Unlocked |
 | `REMOTE_CONTROL_DOOR_STATUS` | `/34213/1/3` | 1 = Locked, 0 = Unlocked |
 | `DOOR_AJAR_FRONT_LEFT_DOOR_STATUS` | `/10351/2/50` | 1 = Open, 0 = Closed |
 | `DOOR_AJAR_FRONT_RIGHT_DOOR_STATUS` | `/10351/1/50` | 1 = Open, 0 = Closed |

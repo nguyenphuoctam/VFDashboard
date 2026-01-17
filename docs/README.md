@@ -28,9 +28,10 @@ Welcome to the technical documentation for the **VinFast Dashboard** project. Th
 *   **Target Audience**: Frontend Developers
 *   **Contents**: Explanation of the client-side state architecture using **Nano Stores**, including the `vehicleStore` structure and update logic.
 
-### 7. [Telemetry Analysis Report](./07_Telemetry_Analysis_Report.html)
-*   **Target Audience**: Data Analysts
-*   **Contents**: Comprehensive raw data dump of telemetry API responses for deep inspection.
+### 7. [VF9 Telemetry Analysis](./07_VF9_Telemetry_Report.html)
+### 8. [VF3 Telemetry Analysis](./08_VF3_Telemetry_Report.html)
+*   **Target Audience**: Data Analysts, Developers
+*   **Contents**: Raw telemetry capture for field mapping verification.
 
 ## Quick Start
 To get started with development, refer to the `README.md` in the project root.

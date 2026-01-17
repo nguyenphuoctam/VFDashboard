@@ -15,3 +15,6 @@ backend/crash.log
 frontend/frontend_debug.log
 backend/sessions.json
 lint_output.*
+
+# Documentation Scripts
+docs/scripts/

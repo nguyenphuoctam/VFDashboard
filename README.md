@@ -44,7 +44,7 @@ You can get the whole system running in minutes.
     ```bash
     cd backend
     npm install
-    node server.js
+    npm start
     ```
     *Server will start on `http://localhost:3000`*
 
