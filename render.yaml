@@ -6,10 +6,8 @@ services:
     dockerContext: ./backend
     dockerfilePath: ./backend/Dockerfile
     plan: free
-    region: singapore # Cùng region với user (vn) sẽ nhanh hơn
+    region: singapore
     envVars:
-      - key: PORT
-        value: 3000
       - key: NODE_ENV
         value: production
       - key: VF_REGION
@@ -26,13 +24,8 @@ services:
     plan: free
     region: singapore
     envVars:
-      - key: PORT
-        value: 4321
       - key: PUBLIC_API_URL
         fromService:
           type: web
           name: vfdashboard-backend
           property: url
-    # Tự động prefix https:// cho PUBLIC_API_URL nếu cần
-    # Tuy nhiên, Astro PUBLIC_API_URL thường được đọc ở build time
-    # Nếu Render Docker build chạy sau khi env được set, nó sẽ ok.
