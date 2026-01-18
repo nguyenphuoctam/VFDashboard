@@ -179,10 +179,11 @@ export default function Login() {
                               setRegion(opt.val);
                               setRegionDropdownOpen(false);
                             }}
-                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition-colors ${region === opt.val
+                            className={`w-full text-left px-3 py-2 rounded-lg text-sm font-bold transition-colors ${
+                              region === opt.val
                                 ? "bg-blue-50 text-blue-600"
                                 : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                              }`}
+                            }`}
                           >
                             {opt.label}
                           </button>

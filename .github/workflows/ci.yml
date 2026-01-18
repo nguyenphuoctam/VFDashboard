@@ -2,32 +2,32 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
+
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Use Node.js
-      uses: actions/setup-node@v4
-      with:
-        node-version: '23'
-        cache: 'npm'
-        cache-dependency-path: package-lock.json
+      - uses: actions/checkout@v4
 
-    - name: Install Dependencies
-      run: npm install
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "23"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
 
-    - name: Check Formatting
-      run: npm run format:check
+      - name: Install Dependencies
+        run: npm install
 
-    - name: Lint Code
-      run: npm run lint
+      - name: Check Formatting
+        run: npm run format:check
 
-    - name: Build Project
-      run: npm run build
+      - name: Lint Code
+        run: npm run lint
+
+      - name: Build Project
+        run: npm run build

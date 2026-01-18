@@ -49,10 +49,7 @@
       "tboxDBVariant": "VF3",
       "isBankLoaned": false,
       "loanContractType": 0,
-      "vehicleRoles": [
-        "ROLE_MASTER_DRIVER",
-        "ROLE_OWNER"
-      ],
+      "vehicleRoles": ["ROLE_MASTER_DRIVER", "ROLE_OWNER"],
       "isSelected": true
     }
   ],

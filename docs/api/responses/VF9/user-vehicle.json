@@ -49,9 +49,7 @@
       "tboxDBVariant": "VF9",
       "isBankLoaned": false,
       "loanContractType": 0,
-      "vehicleRoles": [
-        "ROLE_MASTER_DRIVER"
-      ],
+      "vehicleRoles": ["ROLE_MASTER_DRIVER"],
       "isSelected": true
     },
     {
@@ -101,9 +99,7 @@
       "tboxDBVariant": "VF3",
       "isBankLoaned": false,
       "loanContractType": 0,
-      "vehicleRoles": [
-        "ROLE_DRIVER"
-      ],
+      "vehicleRoles": ["ROLE_DRIVER"],
       "isSelected": false
     }
   ],

@@ -16,6 +16,7 @@ If you discover a security vulnerability within this project, please send an e-m
 All security vulnerability reports will be promptly resolved.
 
 ### Credentials & Privacy
-*   **Never commit your real VIN, username, or password.**
-*   The `.env` file should be added to `.gitignore`.
-*   This project is a client-side dashboard that communicates with VinFast servers. Usage of your credentials is at your own risk.
+
+- **Never commit your real VIN, username, or password.**
+- The `.env` file should be added to `.gitignore`.
+- This project is a client-side dashboard that communicates with VinFast servers. Usage of your credentials is at your own risk.
