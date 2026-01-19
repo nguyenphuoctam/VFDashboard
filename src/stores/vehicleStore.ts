@@ -216,11 +216,15 @@ export const updateVehicleData = (data: Partial<VehicleState>) => {
 
   if (!targetVin) return;
 
+  // Ensure lastUpdated is present for cache consistency
+  const timestamp = data.lastUpdated || Date.now();
+  const dataToCache = { ...data, lastUpdated: timestamp };
+
   // 1. Always Update Cache for the specific vehicle
   // Use a fresh read for the cache to avoid race conditions with other updates
   const latest = vehicleStore.get();
   const currentCache = latest.vehicleCache[targetVin] || {};
-  const newCacheEntry = { ...currentCache, ...data };
+  const newCacheEntry = { ...currentCache, ...dataToCache };
 
   vehicleStore.setKey("vehicleCache", {
     ...latest.vehicleCache,
@@ -232,8 +236,7 @@ export const updateVehicleData = (data: Partial<VehicleState>) => {
   if (targetVin === current.vin) {
     const newState = {
       ...current,
-      ...data,
-      lastUpdated: Date.now(),
+      ...dataToCache,
     };
     vehicleStore.set(newState);
   } else {
