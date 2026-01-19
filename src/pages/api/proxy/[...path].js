@@ -2,13 +2,11 @@ export const prerender = false;
 
 import { REGIONS, DEFAULT_REGION, API_HEADERS } from "../../../config/vinfast";
 
-export const ALL = async ({ request, params }) => {
+export const ALL = async ({ request, params, cookies }) => {
   const path = params.path;
   const urlObj = new URL(request.url);
   const region = urlObj.searchParams.get("region") || DEFAULT_REGION;
   const regionConfig = REGIONS[region] || REGIONS[DEFAULT_REGION];
-
-  // Strip internal params from query
 
   // Strip internal params from query
   const targetSearchParams = new URLSearchParams(urlObj.search);
@@ -20,8 +18,17 @@ export const ALL = async ({ request, params }) => {
   const clientHeaders = request.headers;
 
   // Forward Auth Header
-  const authHeader = clientHeaders.get("Authorization");
+  // Priority: 1. Authorization header from client (if manual override)
+  // 2. Cookie 'access_token' (Secure Proxy Mode)
+  let authHeader = clientHeaders.get("Authorization");
   const vinHeader = clientHeaders.get("x-vin-code");
+
+  if (!authHeader) {
+      const cookieToken = cookies.get("access_token")?.value;
+      if (cookieToken) {
+          authHeader = `Bearer ${cookieToken}`;
+      }
+  }
 
   const proxyHeaders = {
     ...API_HEADERS, // standard headers

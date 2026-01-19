@@ -5,6 +5,7 @@ export default function Login({ bgImage }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [region, setRegion] = useState("vn"); // Default to Vietnam
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [regionDropdownOpen, setRegionDropdownOpen] = useState(false);
@@ -22,7 +23,7 @@ export default function Login({ bgImage }) {
     setError("");
 
     try {
-      await api.authenticate(email, password, region);
+      await api.authenticate(email, password, region, rememberMe);
 
       // Successful login
       window.location.href = "/";
@@ -130,6 +131,24 @@ export default function Login({ bgImage }) {
             </div>
 
             <div className="flex justify-between items-center pt-2">
+              <div className="flex items-center pl-1">
+                <div className="flex items-center h-5">
+                  <input
+                    id="remember-me"
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="w-4 h-4 border border-gray-300 rounded bg-gray-50 focus:ring-3 focus:ring-blue-300"
+                  />
+                </div>
+                <label
+                  htmlFor="remember-me"
+                  className="ml-2 text-sm font-bold text-gray-500 uppercase tracking-wider"
+                >
+                  Remember Me
+                </label>
+              </div>
+
               <div className="text-sm flex items-center bg-gray-50 px-3 py-1.5 rounded-lg">
                 <label
                   htmlFor="region"
@@ -173,7 +192,7 @@ export default function Login({ bgImage }) {
                       ></div>
 
                       {/* Menu */}
-                      <div className="absolute top-full left-0 mt-2 w-40 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-1.5 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-left">
+                      <div className="absolute top-full right-0 mt-2 w-40 bg-white rounded-xl shadow-[0_8px_30px_rgb(0,0,0,0.12)] border border-gray-100 p-1.5 z-20 animate-in fade-in zoom-in-95 duration-200 origin-top-right">
                         {[
                           { val: "vn", label: "Vietnam" },
                           { val: "us", label: "United States" },

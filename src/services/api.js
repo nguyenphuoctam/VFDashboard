@@ -11,11 +11,14 @@ class VinFastAPI {
   constructor() {
     this.region = DEFAULT_REGION;
     this.regionConfig = REGIONS[DEFAULT_REGION];
-    this.accessToken = null;
-    this.refreshToken = null;
+    // Tokens are now managed via HttpOnly cookies and not accessible here
     this.vin = null;
     this.userId = null;
     this.aliasMappings = staticAliasMap;
+    this.rememberMe = false;
+
+    // We assume logged in if metadata cookie exists, but real check is API call
+    this.isLoggedIn = false;
 
     // Load session on init
     this.restoreSession();
@@ -26,36 +29,78 @@ class VinFastAPI {
     this.regionConfig = REGIONS[region] || REGIONS[DEFAULT_REGION];
   }
 
+  // Cookie Helpers - Only for non-sensitive metadata
+  setCookie(name, value, days) {
+    if (typeof document === "undefined") return;
+    let expires = "";
+    if (days) {
+      const date = new Date();
+      date.setTime(date.getTime() + days * 24 * 60 * 60 * 1000);
+      expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (encodeURIComponent(JSON.stringify(value)) || "") + expires + "; path=/; SameSite=Lax";
+  }
+
+  getCookie(name) {
+    if (typeof document === "undefined") return null;
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(";");
+    for (let i = 0; i < ca.length; i++) {
+      let c = ca[i];
+      while (c.charAt(0) === " ") c = c.substring(1, c.length);
+      if (c.indexOf(nameEQ) === 0) {
+        try {
+          return JSON.parse(decodeURIComponent(c.substring(nameEQ.length, c.length)));
+        } catch (e) {
+          return null;
+        }
+      }
+    }
+    return null;
+  }
+
+  deleteCookie(name) {
+    if (typeof document === "undefined") return;
+    document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+  }
+
   saveSession() {
-    if (typeof window === "undefined" || typeof localStorage === "undefined") return;
+    if (typeof window === "undefined") return;
     try {
-      localStorage.setItem(
-        "vf_session",
-        JSON.stringify({
-          accessToken: this.accessToken,
-          refreshToken: this.refreshToken,
-          vin: this.vin,
-          userId: this.userId,
-          region: this.region,
-          timestamp: Date.now(),
-        }),
-      );
+      const data = {
+        vin: this.vin,
+        userId: this.userId,
+        region: this.region,
+        rememberMe: this.rememberMe,
+        timestamp: Date.now(),
+      };
+
+      // Metadata cookie matches RememberMe duration
+      this.setCookie("vf_session", data, this.rememberMe ? 30 : null);
     } catch (e) {
-      // localStorage not available
+      console.error("Failed to save session", e);
     }
   }
 
   restoreSession() {
-    if (typeof window === "undefined" || typeof localStorage === "undefined") return;
+    if (typeof window === "undefined") return;
     try {
-      const raw = localStorage.getItem("vf_session");
-      if (raw) {
-        const data = JSON.parse(raw);
-        this.accessToken = data.accessToken;
-        this.refreshToken = data.refreshToken;
+      const data = this.getCookie("vf_session");
+      if (data) {
         this.vin = data.vin;
         this.userId = data.userId;
+        this.rememberMe = !!data.rememberMe;
         if (data.region) this.setRegion(data.region);
+
+        this.isLoggedIn = true; // Optimistic
+
+        // We rely on background refresh or next API call to validate session
+        // Proactive Refresh "Renew Mechanism"
+        this.refreshAccessToken().catch(e => console.warn("Background refresh failed", e));
+      } else {
+        // Check for vf_region cookie if vf_session is missing (maybe new login flow)
+        // But for now vf_session is our metadata source.
+        this.isLoggedIn = false;
       }
     } catch (e) {
       console.error("Failed to restore session", e);
@@ -63,27 +108,24 @@ class VinFastAPI {
   }
 
   clearSession() {
-    if (typeof window === "undefined" || typeof localStorage === "undefined") return;
-    try {
-      localStorage.removeItem("vf_session");
-    } catch (e) {
-      // localStorage not available
-    }
-    this.accessToken = null;
-    this.refreshToken = null;
+    if (typeof window === "undefined") return;
+    this.deleteCookie("vf_session");
+    // Also trigger backend to clear HttpOnly cookies if needed?
+    // Usually browser clears session cookies on close, but for explicit logout we might need an endpoint.
+    // For now, client side just forgets metadata.
+
     this.vin = null;
     this.userId = null;
+    this.rememberMe = false;
+    this.isLoggedIn = false;
   }
 
   _getHeaders() {
-    if (!this.accessToken) {
-      throw new Error("No access token available");
-    }
     // Mobile App Headers (simplified for browser CORS if needed, but keeping standard for now)
     const headers = {
       "Content-Type": "application/json",
       Accept: "application/json",
-      Authorization: `Bearer ${this.accessToken}`,
+      // Authorization is now injected by Proxy
       "x-service-name": "CAPP",
       "x-app-version": "1.10.3",
       "x-device-platform": "VFDashBoard",
@@ -98,8 +140,10 @@ class VinFastAPI {
     return headers;
   }
 
-  async authenticate(email, password, region = "vn") {
+  async authenticate(email, password, region = "vn", rememberMe = false) {
     this.setRegion(region);
+    this.rememberMe = rememberMe;
+
     // Use local proxy
     const url = `/api/login`;
     const payload = {
@@ -142,18 +186,12 @@ class VinFastAPI {
         throw new Error(errorMessage);
       }
 
-      const data = await response.json();
-      this.accessToken = data.access_token;
-      this.refreshToken = data.refresh_token;
+      await response.json(); // Consume body
 
+      this.isLoggedIn = true;
       this.saveSession();
 
-      // Immediately fetch user profile to get User ID if possible,
-      // but usually getVehicles is better for that.
-      return {
-        access_token: this.accessToken,
-        refresh_token: this.refreshToken,
-      };
+      return { success: true };
     } catch (error) {
       console.error("Auth Error:", error);
       throw error;
@@ -161,14 +199,27 @@ class VinFastAPI {
   }
 
   async refreshAccessToken() {
-    if (!this.refreshToken) return false;
+    try {
+      const response = await fetch("/api/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          region: this.region,
+          rememberMe: this.rememberMe,
+        }),
+      });
 
-    // TODO: Implement Refresh Proxy if needed.
-    // For now, logging out is safer than complex refresh logic without a dedicated endpoint which we haven't built yet.
-    // Ideally we add /api/refresh.
-    console.warn("Token Refresh not fully implemented via Proxy. Logging out.");
-    this.clearSession();
-    return false;
+      if (response.ok) {
+        this.saveSession(); // Update metadata cookie expiration
+        return true;
+      } else {
+        // console.warn("Refresh token failed:", await response.text());
+        return false;
+      }
+    } catch (e) {
+      console.error("Refresh token error:", e);
+      return false;
+    }
   }
 
   async _fetchWithRetry(url, options = {}) {
@@ -181,11 +232,11 @@ class VinFastAPI {
       console.warn("Received 401. Trying to refresh token...");
       const refreshed = await this.refreshAccessToken();
       if (refreshed) {
-        // Update header with new token
-        options.headers.Authorization = `Bearer ${this.accessToken}`;
+        // Retry logic: Browser will automatically attach new Cookies to the next request
         response = await fetch(url, options);
       } else {
         // Refresh failed, likely session expired
+        this.clearSession();
         window.location.href = "/login";
         throw new Error("Session expired");
       }
@@ -214,17 +265,9 @@ class VinFastAPI {
   }
 
   async getUserProfile() {
-    // User Info is on Auth0, not API Base.
-    // We need a separate proxy logic OR just hit it directly if it allows CORS (Auth0 /userinfo usually supports CORS).
-    // Let's try direct first for standard OIDC, if fails we proxy.
-    // Update: userinfo almost always CORS enabled if properly configured.
-    // If we MUST proxy, we need a special case in our generic proxy or a new route.
-    // Let's stick to direct for now, and fallback later if needed.
-
-    const url = `https://${this.regionConfig.auth0_domain}/userinfo`;
-    const response = await this._fetchWithRetry(url, {
-      headers: { Authorization: `Bearer ${this.accessToken}` }, // Override standard headers
-    });
+    // Use new proxy endpoint that supports cookie auth
+    const url = `/api/user?region=${this.region}`;
+    const response = await this._fetchWithRetry(url);
 
     if (!response.ok) {
       throw new Error(`Failed to fetch user profile: ${response.status}`);
