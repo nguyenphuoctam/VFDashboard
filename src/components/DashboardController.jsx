@@ -20,7 +20,11 @@ export default function DashboardController({ vin: initialVin }) {
 
       // If no VIN, fetch it
       if (!targetVin) {
+        // fetchVehicles automatically calls switchVehicle -> fetchTelemetry
         targetVin = await fetchVehicles();
+      } else {
+        // If VIN was passed via props/initial state, ensure we have initial telemetry
+        fetchTelemetry(targetVin);
       }
 
       // If still no VIN or failed to fetch, redirect to login
@@ -31,11 +35,6 @@ export default function DashboardController({ vin: initialVin }) {
         api.clearSession();
         window.location.href = "/login";
         return;
-      }
-
-      // Initial telemetry fetch
-      if (targetVin) {
-        fetchTelemetry(targetVin);
       }
     };
 

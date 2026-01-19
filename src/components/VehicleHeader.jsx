@@ -5,6 +5,7 @@ import {
   fetchTelemetry,
   fetchFullTelemetry,
   switchVehicle,
+  refreshVehicle,
 } from "../stores/vehicleStore";
 import { api } from "../services/api";
 import AboutModal from "./AboutModal";
@@ -141,7 +142,7 @@ export default function VehicleHeader({ onOpenTelemetry }) {
   const [showAbout, setShowAbout] = React.useState(false);
 
   const handleRefresh = () => {
-    fetchTelemetry(vehicle.vin);
+    refreshVehicle(vehicle.vin);
   };
 
   const handleLogout = async () => {

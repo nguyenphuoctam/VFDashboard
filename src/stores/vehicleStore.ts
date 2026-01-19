@@ -216,28 +216,30 @@ export const updateVehicleData = (data: Partial<VehicleState>) => {
 
   if (!targetVin) return;
 
-  // 1. Always Update Cache for the specific vehicle
-  // Use a fresh read for the cache to avoid race conditions with other updates
+  // Ensure lastUpdated is present for cache consistency
+  const timestamp = data.lastUpdated || Date.now();
+  const dataToCache = { ...data, lastUpdated: timestamp };
+
+  // 1. Update Cache
   const latest = vehicleStore.get();
   const currentCache = latest.vehicleCache[targetVin] || {};
-  const newCacheEntry = { ...currentCache, ...data };
-
-  vehicleStore.setKey("vehicleCache", {
+  const newCacheEntry = { ...currentCache, ...dataToCache };
+  const newVehicleCache = {
     ...latest.vehicleCache,
     [targetVin]: newCacheEntry,
-  });
+  };
 
-  // 2. Conditionally Update Main Store
-  // Only update the live UI if the incoming data belongs to the currently viewed vehicle.
-  if (targetVin === current.vin) {
-    const newState = {
-      ...current,
-      ...data,
-      lastUpdated: Date.now(),
-    };
-    vehicleStore.set(newState);
+  // 2. Update Store
+  if (targetVin === latest.vin) {
+    // If active vehicle, update both telemetry and cache in one go
+    vehicleStore.set({
+      ...latest,
+      ...dataToCache,
+      vehicleCache: newVehicleCache,
+    });
   } else {
-    // console.log("Skipping main store update for background VIN:", targetVin);
+    // If background vehicle, only update the cache
+    vehicleStore.setKey("vehicleCache", newVehicleCache);
   }
 };
 
@@ -313,19 +315,12 @@ const INITIAL_TELEMETRY: Partial<VehicleState> = {
   service_alert: 0,
 };
 
-export const switchVehicle = async (targetVin: string) => {
-  const current = vehicleStore.get();
-
-  // 1. Find the vehicle in the list
-  const vehicleInfo = current.vehicles.find((v) => v.vinCode === targetVin);
-  if (!vehicleInfo) {
-    console.error("Vehicle not found during switch", targetVin);
-    return;
-  }
-
-  // 2. Prepare Base State from Vehicle Info
-  const baseState: Partial<VehicleState> = {
-    vin: targetVin,
+const getVehicleBaseState = (
+  vehicleInfo: any,
+  current: VehicleState,
+): Partial<VehicleState> => {
+  return {
+    vin: vehicleInfo.vinCode,
     marketingName: vehicleInfo.marketingName,
     vehicleVariant: vehicleInfo.vehicleVariant,
     color: vehicleInfo.exteriorColor || vehicleInfo.color,
@@ -342,9 +337,26 @@ export const switchVehicle = async (targetVin: string) => {
     warrantyExpirationDate: vehicleInfo.warrantyExpirationDate,
     warrantyMileage: vehicleInfo.warrantyMileage,
   };
+};
+
+export const switchVehicle = async (targetVin: string) => {
+  const current = vehicleStore.get();
+
+  // 1. Find the vehicle in the list
+  const vehicleInfo = current.vehicles.find((v) => v.vinCode === targetVin);
+  if (!vehicleInfo) {
+    console.error("Vehicle not found during switch", targetVin);
+    return;
+  }
+
+  // 2. Prepare Base State from Vehicle Info
+  const baseState = getVehicleBaseState(vehicleInfo, current);
 
   // 3. Hydrate from Cache if available
   const cachedData = current.vehicleCache[targetVin] || {};
+
+  // Check if cache has telemetry (indicated by lastUpdated)
+  const hasTelemetry = !!cachedData.lastUpdated;
 
   // Merge: Current State -> Reset Telemetry -> Base State -> Cached Data
   vehicleStore.set({
@@ -353,11 +365,40 @@ export const switchVehicle = async (targetVin: string) => {
     ...baseState,
     ...cachedData,
     vin: targetVin,
-    isRefreshing: true, // Always show loading when switching
+    isRefreshing: !hasTelemetry, // Only show loading if we don't have telemetry
   });
 
-  // 4. Trigger Background Refresh (Always)
-  fetchTelemetry(targetVin);
+  // 4. Trigger Background Refresh (Only if no telemetry in cache)
+  if (!hasTelemetry) {
+    fetchTelemetry(targetVin);
+  }
+};
+
+export const refreshVehicle = async (vin: string) => {
+  if (!vin) return;
+  const current = vehicleStore.get();
+
+  // 1. Reset Cache for ALL vehicles to just Base State (removing telemetry)
+  const newCache: Record<string, Partial<VehicleState>> = {};
+  current.vehicles.forEach((v) => {
+    const baseState = getVehicleBaseState(v, current);
+    newCache[v.vinCode] = baseState;
+  });
+
+  // 2. Clear main store telemetry immediately if requested vehicle is active
+  if (current.vin === vin) {
+    vehicleStore.set({
+      ...current,
+      ...INITIAL_TELEMETRY,
+      vehicleCache: newCache,
+      isRefreshing: true,
+    });
+  } else {
+    vehicleStore.setKey("vehicleCache", newCache);
+  }
+
+  // 3. Fetch fresh data for the requested vehicle
+  await fetchTelemetry(vin);
 };
 
 export const fetchTelemetry = async (vin: string) => {
