@@ -12,7 +12,10 @@ We have configured the project for **Edge-First** execution using `adapter: clou
 import cloudflare from "@astrojs/cloudflare";
 export default defineConfig({
   output: "server",
-  adapter: cloudflare(), // Auto-detects best mode (Platform Proxy enabled)
+  adapter: cloudflare({
+    imageService: "compile",
+    sessionKVBindingName: "YOUR_KV_BINDING_NAME", // e.g., "VFDashboard"
+  }),
   // ...
 });
 ```
@@ -31,6 +34,10 @@ name = "vfdashboard"
 compatibility_date = "2026-01-01"
 compatibility_flags = ["nodejs_compat"]
 pages_build_output_dir = "./dist"
+
+[[kv_namespaces]]
+binding = "YOUR_KV_BINDING_NAME"
+id = "YOUR_KV_NAMESPACE_ID"
 ```
 
 ## 🏗️ Architecture: Hybrid Model (2026)
@@ -52,17 +59,10 @@ The most reliable way to deploy is using the **Wrangler CLI**. This avoids CI/CD
 
 ### 2. Clean Build & Deploy
 
-Always use the "Nuke" command to ensure no cached artifacts interfere with your deployment:
+Always use the project's built-in deploy command which handles cleaning, building, and uploading in one step:
 
 ```bash
-# 1. Clean old artifacts
-npx rimraf dist .wrangler
-
-# 2. Build for production
-npm run build
-
-# 3. Deploy to Cloudflare Pages
-npx wrangler pages deploy dist
+npm run deploy
 ```
 
 > [!TIP]
@@ -91,6 +91,18 @@ We use **Direct Upload** via the Wrangler CLI. This is faster and gives you more
     ```bash
     npx wrangler pages project create vfdashboard --production-branch main
     ```
+
+### 3. Setting up KV Namespaces (Required)
+
+If you see an "Invalid KV namespace ID" error during deployment, you need to create a real KV namespace:
+
+1.  **Create the namespace**:
+    ```bash
+    npx wrangler kv namespace create YOUR_NAMESPACE_NAME
+    ```
+2.  **Copy the ID**: Copy the `id` and `binding` from the terminal output.
+3.  **Update `wrangler.toml`**: Paste the `binding` and `id` into the `[[kv_namespaces]]` section.
+4.  **Update `astro.config.mjs`**: Ensure `sessionKVBindingName` matches your `binding` name.
 
 ### How to Deploy
 

@@ -146,13 +146,10 @@ export default function VehicleHeader({ onOpenTelemetry }) {
   const handleLogout = async () => {
     try {
       // Best effort server logout
-      await fetch(
-        `${import.meta.env.PUBLIC_API_URL || "http://localhost:3000"}/api/logout`,
-        {
-          method: "POST",
-          credentials: "include",
-        },
-      );
+      await fetch(`${import.meta.env.PUBLIC_API_URL || ""}/api/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
     } catch (e) {
       console.error("Logout failed", e);
     }

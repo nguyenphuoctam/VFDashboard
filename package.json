@@ -13,7 +13,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
-    "deploy": "npm run build && wrangler pages deploy dist"
+    "clean": "rimraf dist .wrangler",
+    "deploy": "npm run clean && npm run build && wrangler pages deploy dist"
   },
   "devDependencies": {
     "@eslint/js": "^9.0.0",
@@ -24,6 +25,7 @@
     "globals": "^15.0.0",
     "prettier": "^3.8.0",
     "prettier-plugin-tailwindcss": "^0.6.14",
+    "rimraf": "^6.1.2",
     "wrangler": "^4.59.2"
   },
   "dependencies": {

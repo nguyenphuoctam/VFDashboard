@@ -58,6 +58,16 @@ You can get the whole system running in minutes.
     ```
     _Dashboard will open at `http://localhost:4321`_
 
+### Deployment
+
+To deploy the dashboard to Cloudflare Pages:
+
+```bash
+npm run deploy
+```
+
+_Note: Requires Cloudflare authentication (`npx wrangler login`)._
+
 ## ⚠ Disclaimer
 
 **This software is not affiliated with, endorsed by, or connected to VinFast Auto or its subsidiaries.**  
