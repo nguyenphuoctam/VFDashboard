@@ -96,6 +96,22 @@ We welcome contributions from the community!
 4.  Push to the Branch (`git push origin feature/AmazingFeature`)
 5.  Open a Pull Request
 
+## 🙏 Acknowledgments
+
+This project was developed based on inspiration and valuable technical documentation regarding APIs from the [**VinFast Owners**](https://vinfastowners.org/) community. We sincerely thank the team at [VinFast Owners Community](https://github.com/vinfastownersorg-cyber/vinfastowners) for their foundational contributions to this open-source ecosystem.
+
+For users prioritizing privacy and data sovereignty, we recommend the **Self-hosted** version maintained by the **VinFast Owners - North America** community.
+
+This fork is optimized for local deployment (Docker/npm) and features:
+- 🔒 **Enhanced Privacy**: Credentials never leave your hardware; strictly local execution.
+- 📊 **Advanced Analytics**: 30-day battery history charts and data export (CSV/JSON).
+- 🌍 **Localization**: Support for Imperial/Metric units and Multi-language (English/French/Vietnamese).
+- 🛠️ **Docker Ready**: Easy setup with a provided `docker-compose` configuration.
+
+👉 Check it out here: [VinFast Dashboard - Self-hosted Fork](https://github.com/vinfastownersorg-cyber/VFDashboard)
+
+We warmly welcome all VinFast owners and technology enthusiasts to join us in contributing and sharing to build a strong, united, and borderless community!
+
 ## 📜 License
 
 Distributed under the MIT License. See `LICENSE` for more information.
