@@ -47,7 +47,7 @@ export default function DashboardApp({ vin: initialVin }) {
       <main className="flex-1 flex flex-col md:grid md:grid-cols-12 gap-6 min-h-0">
         {/* LEFT COLUMN: Energy (Top) + Vehicle Status (Bottom) */}
         <div
-          className={`md:col-span-3 flex flex-col gap-6 ${activeTab === "energy_env" || activeTab === "status" ? "flex-1 animate-in fade-in slide-in-from-bottom-8 duration-500" : "hidden md:flex"}`}
+          className={`md:col-span-3 flex flex-col gap-6 ${activeTab === "energy_env" || activeTab === "status" ? "flex-1" : "hidden md:flex"}`}
         >
           {/* Tab 2: Energy */}
           <div
@@ -65,14 +65,14 @@ export default function DashboardApp({ vin: initialVin }) {
 
         {/* CENTER COLUMN: Digital Twin */}
         <div
-          className={`md:col-span-6 relative bg-gray-800/10 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-sm overflow-hidden md:block flex-1 ${activeTab === "vehicle" ? "flex flex-col animate-in fade-in zoom-in-95 duration-500" : "hidden md:block"}`}
+          className={`md:col-span-6 relative bg-gray-800/10 rounded-3xl border border-white/5 shadow-2xl backdrop-blur-sm overflow-hidden md:block flex-1 ${activeTab === "vehicle" ? "flex flex-col" : "hidden md:block"}`}
         >
           <DigitalTwin />
         </div>
 
         {/* RIGHT COLUMN: Environment (Top) + Location (Bottom) */}
         <div
-          className={`md:col-span-3 flex flex-col ${activeTab === "location" ? "gap-0 md:gap-6 flex-1 animate-in fade-in slide-in-from-bottom-8 duration-500" : "gap-6 hidden md:flex"}`}
+          className={`md:col-span-3 flex flex-col ${activeTab === "location" ? "gap-0 md:gap-6 flex-1" : "gap-6 hidden md:flex"}`}
         >
           {/* Environment - PC Only */}
           <div className="hidden md:block">
