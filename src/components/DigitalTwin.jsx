@@ -286,49 +286,97 @@ export default function DigitalTwin() {
             className={`absolute inset-0 bg-gray-100/50 rounded-2xl animate-pulse ${imageLoaded || !carImageSrc ? "hidden" : "block"}`}
           ></div>
 
-          {carImageSrc && (
-            <img
-              ref={imgRef}
-              src={carImageSrc}
-              alt="Vehicle Isometric"
-              className={`w-full h-full object-contain drop-shadow-2xl z-10 scale-105 transition-opacity duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
-              onLoad={() => setImageLoaded(true)}
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.style.display = "none";
-                setImageLoaded(true);
-              }}
-            />
-          )}
+                    {carImageSrc && (
 
-          {/* Tire Cards - Now INSIDE the container for relative positioning */}
-          <TireCard
-            pressure={data.tire_pressure_fr}
-            temp={data.tire_temp_fr}
-            label="FRONT RIGHT"
-            positionClass="top-[20%] left-[2%]"
-          />
-          <TireCard
-            pressure={data.tire_pressure_rr}
-            temp={data.tire_temp_rr}
-            label="REAR RIGHT"
-            positionClass="top-[20%] right-[2%]"
-          />
+                      <img
 
-          <TireCard
-            pressure={data.tire_pressure_fl}
-            temp={data.tire_temp_fl}
-            label="FRONT LEFT"
-            positionClass="bottom-[10%] left-[2%]"
-          />
-          <TireCard
-            pressure={data.tire_pressure_rl}
-            temp={data.tire_temp_rl}
-            label="REAR LEFT"
-            positionClass="bottom-[10%] right-[2%]"
-          />
-        </div>
-      </div>
+                        ref={imgRef}
+
+                        src={carImageSrc}
+
+                        alt="Vehicle Isometric"
+
+                        className={`w-full h-full object-contain drop-shadow-2xl z-10 scale-105 transition-opacity duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+
+                        onLoad={() => setImageLoaded(true)}
+
+                        onError={(e) => {
+
+                          e.target.onerror = null;
+
+                          e.target.style.display = "none";
+
+                          setImageLoaded(true);
+
+                        }}
+
+                      />
+
+                    )}
+
+                  </div>
+
+          
+
+                  {/* Tire Cards */}
+
+                  {/* TL=FR, TR=RR, BL=FL, BR=RL */}
+
+          
+
+                  <TireCard
+
+                    pressure={data.tire_pressure_fr}
+
+                    temp={data.tire_temp_fr}
+
+                    label="FRONT RIGHT"
+
+                    positionClass="top-[25%] left-[1%] md:left-[8%]"
+
+                  />
+
+                  <TireCard
+
+                    pressure={data.tire_pressure_rr}
+
+                    temp={data.tire_temp_rr}
+
+                    label="REAR RIGHT"
+
+                    positionClass="top-[25%] right-[1%] md:right-[8%]"
+
+                  />
+
+          
+
+                  <TireCard
+
+                    pressure={data.tire_pressure_fl}
+
+                    temp={data.tire_temp_fl}
+
+                    label="FRONT LEFT"
+
+                    positionClass="bottom-[8%] md:bottom-[2%] left-[2%] md:left-[8%]"
+
+                  />
+
+                  <TireCard
+
+                    pressure={data.tire_pressure_rl}
+
+                    temp={data.tire_temp_rl}
+
+                    label="REAR LEFT"
+
+                    positionClass="bottom-[8%] md:bottom-[2%] right-[2%] md:right-[8%]"
+
+                  />
+
+                </div>
+
+          
 
       {/* Bottom Controls Area */}
       <div className="h-auto w-full bg-white flex flex-col items-center justify-end pb-4 space-y-3 z-30">
