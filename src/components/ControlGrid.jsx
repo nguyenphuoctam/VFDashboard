@@ -268,11 +268,10 @@ export function MapCard() {
             style={{ pointerEvents: "auto" }}
           ></iframe>
         ) : (
-          /* Loading / No Signal State */
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400 bg-gray-50">
             <div className="w-12 h-12 rounded-full border-4 border-gray-200 border-t-blue-500 animate-spin mb-3"></div>
             <span className="text-xs font-bold uppercase tracking-wider">
-              Đang xác định vị trí
+              Locating...
             </span>
           </div>
         )}

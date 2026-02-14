@@ -28,12 +28,115 @@ export default function DigitalTwin() {
     if (imgRef.current && imgRef.current.complete) {
       setImageLoaded(true);
     }
-  }, [data.vin]); // Reset load state on VIN change if needed, though react keying might be better
+  }, [data.vin]);
 
   // Multi-Vehicle Logic
   const allVehicles = data.vehicles || [];
   const currentIndex = allVehicles.findIndex((v) => v.vinCode === data.vin);
   const hasMultipleVehicles = allVehicles.length > 1;
+
+  // --- Swipe / Drag to switch vehicle ---
+  const dragRef = React.useRef(null);
+  const [dragOffset, setDragOffset] = React.useState(0);
+  const [slideDir, setSlideDir] = React.useState(null); // "left" | "right" | null
+  const isDragging = React.useRef(false);
+  const startX = React.useRef(0);
+  const startY = React.useRef(0);
+  const hasMoved = React.useRef(false);
+
+  // Reset slide animation when VIN changes
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSlideDir(null), 350);
+    return () => clearTimeout(timer);
+  }, [data.vin]);
+
+  const SWIPE_THRESHOLD = 60;
+
+  const handleDragStart = (clientX, clientY) => {
+    if (!hasMultipleVehicles) return;
+    isDragging.current = true;
+    hasMoved.current = false;
+    startX.current = clientX;
+    startY.current = clientY;
+    setDragOffset(0);
+  };
+
+  const handleDragMove = (clientX, clientY) => {
+    if (!isDragging.current) return;
+    const dx = clientX - startX.current;
+    const dy = clientY - startY.current;
+    // If more vertical than horizontal, cancel (let page scroll)
+    if (!hasMoved.current && Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > 10) {
+      isDragging.current = false;
+      setDragOffset(0);
+      return;
+    }
+    if (Math.abs(dx) > 10) hasMoved.current = true;
+    // Clamp drag to max 150px with rubber-band feel
+    const clamped = Math.sign(dx) * Math.min(Math.abs(dx), 150);
+    setDragOffset(clamped);
+  };
+
+  const handleDragEnd = () => {
+    if (!isDragging.current) return;
+    isDragging.current = false;
+    if (Math.abs(dragOffset) >= SWIPE_THRESHOLD && hasMultipleVehicles) {
+      if (dragOffset > 0) {
+        // Swiped right → previous vehicle
+        setSlideDir("right");
+        const prevIdx =
+          currentIndex > 0 ? currentIndex - 1 : allVehicles.length - 1;
+        switchVehicle(allVehicles[prevIdx].vinCode);
+      } else {
+        // Swiped left → next vehicle
+        setSlideDir("left");
+        const nextIdx =
+          currentIndex < allVehicles.length - 1 ? currentIndex + 1 : 0;
+        switchVehicle(allVehicles[nextIdx].vinCode);
+      }
+    }
+    setDragOffset(0);
+  };
+
+  // Touch handlers
+  const onTouchStart = (e) => {
+    const t = e.touches[0];
+    handleDragStart(t.clientX, t.clientY);
+  };
+  const onTouchMove = (e) => {
+    const t = e.touches[0];
+    handleDragMove(t.clientX, t.clientY);
+    if (hasMoved.current) e.preventDefault();
+  };
+  const onTouchEnd = () => handleDragEnd();
+
+  // Mouse handlers
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    handleDragStart(e.clientX, e.clientY);
+  };
+  const onMouseMove = (e) => handleDragMove(e.clientX, e.clientY);
+  const onMouseUp = () => handleDragEnd();
+  const onMouseLeave = () => {
+    if (isDragging.current) handleDragEnd();
+  };
+
+  // Compute transform for slide-in animation or drag offset
+  const getImageTransform = () => {
+    if (dragOffset !== 0) {
+      return `translateX(${dragOffset}px) scale(${1 - Math.abs(dragOffset) * 0.001})`;
+    }
+    if (slideDir === "left") return undefined; // handled by CSS animation
+    if (slideDir === "right") return undefined;
+    return undefined;
+  };
+
+  const getImageAnimClass = () => {
+    if (dragOffset !== 0) return ""; // no animation during drag
+    if (slideDir === "left") return "animate-slideInFromRight";
+    if (slideDir === "right") return "animate-slideInFromLeft";
+    return "";
+  };
 
   const getCarImage = () => {
     // 1. Prefer API provided image
@@ -204,73 +307,95 @@ export default function DigitalTwin() {
           </div>
         </div>
 
-        <div className="relative w-full max-w-[520px] aspect-[16/10] flex items-center justify-center mt-3 md:mt-0 translate-y-8 md:translate-y-20 scale-90 md:scale-100 group">
+        <div
+          ref={dragRef}
+          className="relative w-full max-w-[520px] aspect-[16/10] flex items-center justify-center mt-3 md:mt-0 translate-y-8 md:translate-y-20 scale-90 md:scale-100 group select-none"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onMouseDown={onMouseDown}
+          onMouseMove={onMouseMove}
+          onMouseUp={onMouseUp}
+          onMouseLeave={onMouseLeave}
+          style={{
+            cursor: hasMultipleVehicles ? "grab" : "default",
+            touchAction: "pan-y",
+          }}
+        >
           {hasMultipleVehicles && (
             <>
-              {/* Left Arrow */}
-              <div className="absolute left-0 top-1/2 -translate-y-1/2 z-30 px-2">
-                {currentIndex > 0 && (
-                  <button
-                    onClick={() =>
-                      switchVehicle(allVehicles[currentIndex - 1].vinCode)
-                    }
-                    className="p-3 rounded-full bg-white/80 backdrop-blur-sm border border-gray-100 shadow-lg text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-95 transition-all"
-                    title="Previous Vehicle"
+              {/* Left Arrow — wrap around */}
+              <div className="absolute -left-1 md:left-0 top-1/2 -translate-y-1/2 z-30">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideDir("right");
+                    const prevIdx =
+                      currentIndex > 0
+                        ? currentIndex - 1
+                        : allVehicles.length - 1;
+                    switchVehicle(allVehicles[prevIdx].vinCode);
+                  }}
+                  className="p-2.5 md:p-3 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg text-gray-400 hover:text-blue-600 hover:bg-white hover:scale-110 active:scale-90 transition-all"
+                  title="Previous Vehicle"
+                >
+                  <svg
+                    className="w-5 h-5 md:w-6 md:h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2.5"
-                        d="M15 19l-7-7 7-7"
-                      />
-                    </svg>
-                  </button>
-                )}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2.5"
+                      d="M15 19l-7-7 7-7"
+                    />
+                  </svg>
+                </button>
               </div>
 
-              {/* Right Arrow */}
-              <div className="absolute right-0 top-1/2 -translate-y-1/2 z-30 px-2">
-                {currentIndex < allVehicles.length - 1 && (
-                  <button
-                    onClick={() =>
-                      switchVehicle(allVehicles[currentIndex + 1].vinCode)
-                    }
-                    className="p-3 rounded-full bg-white/80 backdrop-blur-sm border border-gray-100 shadow-lg text-gray-400 hover:text-blue-600 hover:scale-110 active:scale-95 transition-all"
-                    title="Next Vehicle"
+              {/* Right Arrow — wrap around */}
+              <div className="absolute -right-1 md:right-0 top-1/2 -translate-y-1/2 z-30">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSlideDir("left");
+                    const nextIdx =
+                      currentIndex < allVehicles.length - 1
+                        ? currentIndex + 1
+                        : 0;
+                    switchVehicle(allVehicles[nextIdx].vinCode);
+                  }}
+                  className="p-2.5 md:p-3 rounded-full bg-white/90 backdrop-blur-sm border border-gray-200 shadow-lg text-gray-400 hover:text-blue-600 hover:bg-white hover:scale-110 active:scale-90 transition-all"
+                  title="Next Vehicle"
+                >
+                  <svg
+                    className="w-5 h-5 md:w-6 md:h-6"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg
-                      className="w-6 h-6"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2.5"
-                        d="M9 5l7 7-7 7"
-                      />
-                    </svg>
-                  </button>
-                )}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth="2.5"
+                      d="M9 5l7 7-7 7"
+                    />
+                  </svg>
+                </button>
               </div>
 
               {/* Pagination Dots */}
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-30">
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 z-30">
                 {allVehicles.map((v, idx) => (
                   <button
                     key={v.vinCode}
                     onClick={() => switchVehicle(v.vinCode)}
                     className={`transition-all duration-300 rounded-full ${
                       idx === currentIndex
-                        ? "w-6 h-1.5 bg-gray-800"
-                        : "w-1.5 h-1.5 bg-gray-300 hover:bg-gray-400"
+                        ? "w-6 h-2 bg-gray-800"
+                        : "w-2 h-2 bg-gray-300 hover:bg-gray-500"
                     }`}
                     title={
                       v.customizedVehicleName || v.vehicleName || "Vehicle"
@@ -291,13 +416,17 @@ export default function DigitalTwin() {
               ref={imgRef}
               src={carImageSrc}
               alt="Vehicle Isometric"
-              className={`w-full h-full object-contain drop-shadow-2xl z-10 scale-105 transition-opacity duration-500 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+              draggable={false}
+              className={`w-full h-full object-contain drop-shadow-2xl z-10 scale-105 ${getImageAnimClass()} ${dragOffset !== 0 ? "" : "transition-all duration-500"} ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+              style={
+                dragOffset !== 0
+                  ? { transform: getImageTransform(), transition: "none" }
+                  : undefined
+              }
               onLoad={() => setImageLoaded(true)}
               onError={(e) => {
                 e.target.onerror = null;
-
                 e.target.style.display = "none";
-
                 setImageLoaded(true);
               }}
             />

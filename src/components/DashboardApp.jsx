@@ -5,6 +5,7 @@ import DashboardController from "./DashboardController";
 import AuthGate from "./AuthGate";
 import VehicleHeader from "./VehicleHeader";
 import CarStatus from "./CarStatus";
+import ChargingHistory from "./ChargingHistory";
 import { EnvironmentCard, MapCard } from "./ControlGrid";
 import DigitalTwin from "./DigitalTwin";
 import SystemHealth from "./SystemHealth";
@@ -12,11 +13,15 @@ import MobileNav from "./MobileNav";
 
 // Lazy load heavy components
 const TelemetryDrawer = React.lazy(() => import("./TelemetryDrawer"));
+const ChargingHistoryDrawer = React.lazy(
+  () => import("./ChargingHistoryDrawer"),
+);
 
 export default function DashboardApp({ vin: initialVin }) {
   const { isInitialized, vin } = useStore(vehicleStore);
   const [activeTab, setActiveTab] = useState("vehicle");
   const [isTelemetryDrawerOpen, setIsTelemetryDrawerOpen] = useState(false);
+  const [isChargingDrawerOpen, setIsChargingDrawerOpen] = useState(false);
 
   const handleFullScan = async () => {
     if (vin) {
@@ -26,6 +31,10 @@ export default function DashboardApp({ vin: initialVin }) {
 
   const handleOpenTelemetry = () => {
     setIsTelemetryDrawerOpen(true);
+  };
+
+  const handleOpenCharging = () => {
+    setIsChargingDrawerOpen(true);
   };
 
   return (
@@ -39,19 +48,30 @@ export default function DashboardApp({ vin: initialVin }) {
       ) : (
         <div className="fixed inset-0 w-full h-[100dvh] z-0 md:static md:h-auto md:max-w-7xl md:min-w-[1280px] md:mx-auto p-4 md:space-y-6 pb-28 md:pb-4 animate-in fade-in duration-700 flex flex-col overflow-hidden md:overflow-visible">
           <header className="flex-shrink-0 relative z-[60]">
-            <VehicleHeader onOpenTelemetry={handleOpenTelemetry} />
+            <VehicleHeader
+              onOpenTelemetry={handleOpenTelemetry}
+              onOpenCharging={handleOpenCharging}
+            />
           </header>
 
           <main className="flex-1 flex flex-col md:grid md:grid-cols-12 gap-6 min-h-0">
             {/* LEFT COLUMN: Energy (Top) + Vehicle Status (Bottom) */}
             <div
-              className={`md:col-span-3 flex flex-col gap-6 ${activeTab === "energy_env" || activeTab === "status" ? "flex-1" : "hidden md:flex"}`}
+              className={`md:col-span-3 flex flex-col gap-6 ${activeTab === "energy_env" || activeTab === "status" ? "flex-1 min-h-0" : "hidden md:flex"}`}
             >
-              {/* Tab 2: Energy */}
+              {/* Tab 2: Energy — scrollable on mobile (CarStatus + ChargingHistory) */}
               <div
-                className={`${activeTab === "energy_env" ? "flex-1 block" : "hidden md:block"}`}
+                className={`${activeTab === "energy_env" ? "flex-1 flex flex-col min-h-0 overflow-y-auto md:overflow-visible scrollbar-none" : "hidden md:block"}`}
               >
-                <CarStatus />
+                <div className="flex-shrink-0">
+                  <CarStatus />
+                </div>
+                {/* Mobile only: inline charging history below energy */}
+                {activeTab === "energy_env" && (
+                  <div className="md:hidden mt-4 bg-white rounded-3xl p-4 shadow-sm border border-gray-100">
+                    <ChargingHistory inline />
+                  </div>
+                )}
               </div>
               {/* Tab 3: Vehicle Status */}
               <div
@@ -90,11 +110,18 @@ export default function DashboardApp({ vin: initialVin }) {
             onTabChange={setActiveTab}
             onScan={handleOpenTelemetry}
           />
+
           <Suspense fallback={null}>
             {isTelemetryDrawerOpen && (
               <TelemetryDrawer
                 isOpen={isTelemetryDrawerOpen}
                 onClose={() => setIsTelemetryDrawerOpen(false)}
+              />
+            )}
+            {isChargingDrawerOpen && (
+              <ChargingHistoryDrawer
+                isOpen={isChargingDrawerOpen}
+                onClose={() => setIsChargingDrawerOpen(false)}
               />
             )}
           </Suspense>

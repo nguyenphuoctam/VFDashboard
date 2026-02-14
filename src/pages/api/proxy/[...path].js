@@ -8,7 +8,12 @@ const ALLOWED_PATH_PREFIXES = [
   "ccarusermgnt/api/v1/user-vehicle",
   "modelmgmt/api/v2/vehicle-model/",
   "ccaraccessmgmt/api/v1/telemetry/",
+  "ccarcharging/api/v1/stations/",
+  "ccarcharging/api/v1/charging-sessions/search",
 ];
+
+// Paths that require X-HASH + X-HASH-2 signing (beyond Bearer token)
+const SIGNED_PATH_PREFIXES = ["ccaraccessmgmt/", "ccarcharging/"];
 
 /**
  * Generate X-HASH for VinFast API request
@@ -138,8 +143,8 @@ export const ALL = async ({ request, params, cookies, locals }) => {
 
   // Only telemetry endpoints require X-HASH and X-HASH-2 signing.
   // Other endpoints (user-vehicle, vehicle-model) only need Bearer token.
-  const isTelemetryPath = apiPath.startsWith(
-    "ccaraccessmgmt/api/v1/telemetry/",
+  const requiresSigning = SIGNED_PATH_PREFIXES.some((prefix) =>
+    apiPath.startsWith(prefix),
   );
 
   const proxyHeaders = {
@@ -148,7 +153,7 @@ export const ALL = async ({ request, params, cookies, locals }) => {
     Authorization: `Bearer ${accessToken}`,
   };
 
-  if (isTelemetryPath) {
+  if (requiresSigning) {
     const runtimeEnv = locals?.runtime?.env || import.meta.env || {};
     let secretKey =
       runtimeEnv.VINFAST_XHASH_SECRET ||

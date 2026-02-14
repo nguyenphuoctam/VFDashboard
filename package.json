@@ -37,9 +37,11 @@
     "@types/react": "^19.2.9",
     "@types/react-dom": "^19.2.3",
     "astro": "^5.16.15",
+    "leaflet": "^1.9.4",
     "nanostores": "^1.1.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-leaflet": "^5.0.0",
     "tailwindcss": "^4.1.18"
   }
 }

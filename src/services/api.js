@@ -350,6 +350,42 @@ class VinFastAPI {
     return json.data || [];
   }
 
+  // --- Charging Station API ---
+
+  async searchChargingStations(latitude, longitude, excludeFavorite = false) {
+    const proxyPath = `ccarcharging/api/v1/stations/search`;
+    const url = `/api/proxy/${proxyPath}?region=${this.region}`;
+
+    const response = await this._fetchWithRetry(url, {
+      method: "POST",
+      body: JSON.stringify({ latitude, longitude, excludeFavorite }),
+    });
+
+    if (!response.ok) throw new Error("Failed to search charging stations");
+    const json = await response.json();
+    return json.data || json;
+  }
+
+  // --- Charging History API ---
+  // Endpoint: POST /ccarcharging/api/v1/charging-sessions/search?page=N&size=N
+  // Body: {"orderStatus":[3,5,7]} (3=completed, 5=failed, 7=cancelled)
+
+  async getChargingHistory(page = 0, size = 20) {
+    if (!this.vin) throw new Error("VIN is required");
+    const proxyPath = `ccarcharging/api/v1/charging-sessions/search`;
+    const url = `/api/proxy/${proxyPath}?region=${this.region}&page=${page}&size=${size}`;
+
+    const response = await this._fetchWithRetry(url, {
+      method: "POST",
+      body: JSON.stringify({ orderStatus: [3, 5, 7] }),
+    });
+    if (!response.ok) throw new Error("Failed to fetch charging history");
+    const json = await response.json();
+
+    // Return full JSON: { code, message, data: [...sessions], metadata: { totalRecords } }
+    return json;
+  }
+
   // --- External Integrations (Weather/Map) ---
 
   async fetchLocationName(lat, lon) {
