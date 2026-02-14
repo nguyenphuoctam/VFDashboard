@@ -1,38 +1,47 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { api } from "../services/api";
-import { useStore } from "@nanostores/react";
 import {
   fetchTelemetry,
   fetchUser,
   fetchVehicles,
   vehicleStore,
 } from "../stores/vehicleStore";
+import { fetchChargingSessions } from "../stores/chargingHistoryStore";
 import {
   REFRESH_INTERVAL,
-  resetRefreshTimer,
 } from "../stores/refreshTimerStore";
 
 export default function DashboardController({ vin: initialVin }) {
-  const { vin } = useStore(vehicleStore);
+  const isMounted = useRef(true);
+  const pollingInFlight = useRef(false);
 
   useEffect(() => {
-    const init = async () => {
-      let targetVin = initialVin || vin;
+    isMounted.current = true;
 
-      // Ensure we have User profile
-      fetchUser();
+    const init = async () => {
+      let targetVin = initialVin || vehicleStore.get().vin;
+
+      await fetchUser();
+      if (!isMounted.current) return;
 
       // If no VIN, fetch it
       if (!targetVin) {
         // fetchVehicles automatically calls switchVehicle -> fetchTelemetry
         targetVin = await fetchVehicles();
+        if (!isMounted.current) return;
       } else {
         // If VIN was passed via props/initial state, ensure we have initial telemetry
-        fetchTelemetry(targetVin);
+        await fetchTelemetry(targetVin);
+        if (!isMounted.current) return;
+      }
+
+      if (targetVin) {
+        // Preload full charging history for dashboard stats.
+        void fetchChargingSessions(targetVin);
       }
 
       // If still no VIN or failed to fetch, redirect to login
-      if (!targetVin) {
+      if (!targetVin && isMounted.current) {
         console.warn(
           "No vehicle found or init failed. Clearing session and redirecting.",
         );
@@ -43,22 +52,33 @@ export default function DashboardController({ vin: initialVin }) {
     };
 
     init();
+
+    return () => {
+      isMounted.current = false;
+    };
   }, [initialVin]); // Only run on load or if SSR vin changes
 
   // Polling Effect
   useEffect(() => {
+    const poll = async () => {
+      const currentVin = vehicleStore.get().vin || initialVin;
+      if (!currentVin || pollingInFlight.current || !isMounted.current) return;
+
+      pollingInFlight.current = true;
+      try {
+        await fetchTelemetry(currentVin);
+      } finally {
+        pollingInFlight.current = false;
+      }
+    };
+
     // Polling Interval: 5 hours (18000000 ms)
     const interval = setInterval(() => {
-      const currentVin = vin || initialVin;
-      if (currentVin) {
-        fetchTelemetry(currentVin);
-        fetchUser(); // Refresh user too
-        resetRefreshTimer(); // Reset the countdown timer
-      }
+      poll();
     }, REFRESH_INTERVAL);
 
     return () => clearInterval(interval);
-  }, [vin, initialVin]);
+  }, [initialVin]);
 
   return null; // Headless
 }

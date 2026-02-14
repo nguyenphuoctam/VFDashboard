@@ -5,20 +5,77 @@ export const isAuthenticated = atom(false);
 export const userRegion = atom("vn");
 export const userEmail = atom("");
 
-onMount(isAuthenticated, () => {
-  // Check if API has specific tokens loaded
-  if (api.accessToken) {
-    isAuthenticated.set(true);
-    userRegion.set(api.region);
-  } else {
-    // Fallback check directly to localStorage if API hasn't init'd (though it should have in its constructor)
-    // api.constructor calls restoreSession(), so api.accessToken should be populated if exists.
+const SESSION_KEY = "vf_session";
 
-    // Double check restoration just in case or for reactive syncing
-    api.restoreSession();
-    if (api.accessToken) {
-      isAuthenticated.set(true);
-      userRegion.set(api.region);
+function readBrowserSession() {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return null;
+
+    // Expire stale metadata quickly for non-remember sessions.
+    if (parsed.expiresAt && parsed.expiresAt <= Date.now()) {
+      window.localStorage.removeItem(SESSION_KEY);
+      return null;
     }
+
+    return parsed;
+  } catch {
+    window.localStorage.removeItem(SESSION_KEY);
+    return null;
   }
+}
+
+function syncAuthState() {
+  try {
+    // Keep API session state in sync before deriving UI auth state.
+    api.restoreSession();
+  } catch {
+    // Non-fatal: keep fallback checks based on metadata only.
+  }
+
+  const session = readBrowserSession();
+
+  const authenticated = Boolean(
+    api.isLoggedIn || session || api.getCookie?.(SESSION_KEY),
+  );
+
+  isAuthenticated.set(authenticated);
+  if (authenticated) {
+    if (session?.region) {
+      userRegion.set(session.region);
+    } else {
+      userRegion.set(api.region || "vn");
+    }
+
+    userEmail.set(session?.email || "");
+  } else {
+    userRegion.set("vn");
+    userEmail.set("");
+  }
+
+  return authenticated;
+}
+
+onMount(isAuthenticated, () => {
+  syncAuthState();
+
+  if (typeof window === "undefined") return;
+
+  const handler = (event) => {
+    if (event.key === SESSION_KEY) {
+      syncAuthState();
+    }
+  };
+
+  window.addEventListener("storage", handler);
+  return () => window.removeEventListener("storage", handler);
 });
+
+export function refreshAuthState() {
+  return syncAuthState();
+}

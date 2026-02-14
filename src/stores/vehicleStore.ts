@@ -243,6 +243,9 @@ export const vehicleStore = map<VehicleState>({
   isEnriching: false,
 });
 
+const telemetryFetchInFlight = new Map<string, Promise<void>>();
+let telemetryInFlightCount = 0;
+
 export const updateVehicleData = (data: Partial<VehicleState>) => {
   const current = vehicleStore.get();
   // We expect 'vin' to be provided in 'data' for robust handling.
@@ -447,25 +450,53 @@ export const refreshVehicle = async (vin: string) => {
 export const fetchTelemetry = async (vin: string) => {
   if (!vin) return;
 
-  // Set refreshing state
-  vehicleStore.setKey("isRefreshing", true);
-  vehicleStore.setKey("isEnriching", true);
-  setRefreshing(true);
+  let success = false;
 
-  try {
-    const data = await api.getTelemetry(vin);
-    if (data) {
-      updateVehicleData({ ...data, vin });
+  const existing = telemetryFetchInFlight.get(vin);
+  if (existing) return existing;
+
+  const fetchTask = (async () => {
+    telemetryInFlightCount += 1;
+
+    if (telemetryInFlightCount === 1) {
+      // Set refreshing state only for first concurrent call.
+      vehicleStore.setKey("isRefreshing", true);
+      vehicleStore.setKey("isEnriching", true);
+      setRefreshing(true);
     }
-  } catch (e) {
-    console.error("Telemetry Refresh Error", e);
+
+    try {
+      const data = await api.getTelemetry(vin);
+      if (data) {
+        updateVehicleData({ ...data, vin });
+        success = true;
+      }
+    } catch (e) {
+      console.error("Telemetry Refresh Error", e);
+    } finally {
+      telemetryInFlightCount = Math.max(0, telemetryInFlightCount - 1);
+
+      if (telemetryInFlightCount === 0) {
+        vehicleStore.setKey("isRefreshing", false);
+        vehicleStore.setKey("isEnriching", false);
+        setRefreshing(false);
+
+        if (success) {
+          resetRefreshTimer(); // Reset the countdown timer only after successful refresh
+          if (!vehicleStore.get().isInitialized) {
+            vehicleStore.setKey("isInitialized", true);
+          }
+        }
+      }
+    }
+  })();
+
+  telemetryFetchInFlight.set(vin, fetchTask);
+  try {
+    await fetchTask;
   } finally {
-    vehicleStore.setKey("isRefreshing", false);
-    vehicleStore.setKey("isEnriching", false);
-    setRefreshing(false);
-    resetRefreshTimer(); // Reset the countdown timer after successful refresh
-    if (!vehicleStore.get().isInitialized) {
-      vehicleStore.setKey("isInitialized", true);
+    if (telemetryFetchInFlight.get(vin) === fetchTask) {
+      telemetryFetchInFlight.delete(vin);
     }
   }
 };

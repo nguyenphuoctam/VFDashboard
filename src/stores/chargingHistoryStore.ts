@@ -65,6 +65,7 @@ interface ChargingHistoryState {
   /** True while loading remaining pages after first batch */
   isLoadingMore: boolean;
   error: string | null;
+  warning: string | null;
   /** Available years from data (newest first) */
   availableYears: number[];
   /** Available months from data (newest first) */
@@ -88,9 +89,14 @@ interface VinCache {
 }
 
 const vinCacheMap = new Map<string, VinCache>();
+const persistedCache: Record<string, VinCache> = {};
+let cacheHydrated = false;
 
+const CHARGING_HISTORY_CACHE_KEY = "vf_charging_sessions_cache_v1";
 // Cache 24h — charging history is basically immutable for past sessions
 const CACHE_TTL = 24 * 60 * 60 * 1000;
+const MAX_CACHED_VINS = 6;
+const chargingHistoryFetchInFlight = new Map<string, Promise<void>>();
 
 export const chargingHistoryStore = map<ChargingHistoryState>({
   sessions: [],
@@ -99,6 +105,7 @@ export const chargingHistoryStore = map<ChargingHistoryState>({
   isLoading: false,
   isLoadingMore: false,
   error: null,
+  warning: null,
   availableYears: [],
   availableMonths: [],
   filterMode: "all",
@@ -176,8 +183,8 @@ function applyFilter(
 
 /**
  * Compute a smart default filter based on first-batch data.
- * - If data spans only the current year → filter by current year
  * - If data has current-month sessions → filter by current month
+ * - Else if data has current-year sessions → filter by current year
  * - Otherwise → "all"
  */
 function computeSmartDefault(sessions: ChargingSession[]): {
@@ -191,6 +198,16 @@ function computeSmartDefault(sessions: ChargingSession[]): {
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
+  const hasCurrentMonth = sessions.some((s) => {
+    const t = getSessionTime(s);
+    if (!t) return false;
+    const d = new Date(t);
+    return d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth;
+  });
+  if (hasCurrentMonth) {
+    return { mode: "month", year: currentYear, month: currentMonth };
+  }
+
   // Check if we have sessions in the current year
   const hasCurrentYear = sessions.some((s) => {
     const t = getSessionTime(s);
@@ -199,16 +216,6 @@ function computeSmartDefault(sessions: ChargingSession[]): {
 
   if (!hasCurrentYear) return { mode: "all", year: 0, month: 0 };
 
-  // Check if we have sessions in the current month
-  const hasCurrentMonth = sessions.some((s) => {
-    const t = getSessionTime(s);
-    if (!t) return false;
-    const d = new Date(t);
-    return d.getFullYear() === currentYear && d.getMonth() + 1 === currentMonth;
-  });
-
-  // If current month has data, auto-select current year (not month — to show more context)
-  // If only current year, auto-select year
   return { mode: "year", year: currentYear, month: 0 };
 }
 
@@ -253,10 +260,118 @@ function extractTotalRecords(json: any, fallback: number): number {
   return fallback;
 }
 
+function hydrateCacheFromStorage() {
+  if (cacheHydrated) return;
+  cacheHydrated = true;
+
+  if (typeof window === "undefined") return;
+
+  try {
+    const raw = window.localStorage.getItem(CHARGING_HISTORY_CACHE_KEY);
+    if (!raw) return;
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.items !== "object") return;
+
+    const now = Date.now();
+    const rawItems = parsed.items as Record<string, VinCache>;
+    Object.entries(rawItems).forEach(([vin, item]) => {
+      if (!item || !Array.isArray(item.sessions)) return;
+      if (!Number.isFinite(item.fetchedAt) || !Number.isFinite(item.totalRecords)) return;
+      if (now - item.fetchedAt > CACHE_TTL) return;
+
+      vinCacheMap.set(vin, item);
+      persistedCache[vin] = item;
+    });
+
+    // Remove expired/stale records on app start and persist compacted cache.
+    cleanupPersistedCache(persistedCache);
+    persistChargingCache();
+  } catch {
+    // ignore invalid cache data, continue with memory-only mode
+  }
+}
+
+function persistChargingCache() {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      CHARGING_HISTORY_CACHE_KEY,
+      JSON.stringify({ items: persistedCache }),
+    );
+  } catch {
+    // localStorage quota exceeded or blocked, continue without persistence
+  }
+}
+
+function cleanupPersistedCache(target: Record<string, VinCache>) {
+  const now = Date.now();
+  const cleaned: Record<string, VinCache> = {};
+  Object.entries(target).forEach(([vin, item]) => {
+    if (!item || !Array.isArray(item.sessions)) return;
+    if (now - item.fetchedAt > CACHE_TTL) return;
+    cleaned[vin] = item;
+  });
+
+  // Keep only latest N VIN entries to reduce storage growth.
+  const ordered = Object.entries(cleaned).sort(
+    (a, b) => b[1].fetchedAt - a[1].fetchedAt,
+  );
+  const pruned = ordered.slice(0, MAX_CACHED_VINS);
+
+  Object.keys(target).forEach((vin) => delete target[vin]);
+  for (const [vin, item] of pruned) {
+    target[vin] = item;
+  }
+
+  // Keep in-memory map aligned with persisted cache to avoid unbounded growth.
+  vinCacheMap.clear();
+  for (const [vin, item] of Object.entries(target)) {
+    vinCacheMap.set(vin, item);
+  }
+}
+
+function setCachedData(vin: string, sessions: ChargingSession[], totalRecords: number) {
+  const payload: VinCache = {
+    sessions,
+    totalRecords,
+    fetchedAt: Date.now(),
+  };
+  vinCacheMap.set(vin, payload);
+  persistedCache[vin] = payload;
+  cleanupPersistedCache(persistedCache);
+  persistChargingCache();
+}
+
+function normalizeIdSet(
+  sessions: ChargingSession[] | null | undefined,
+): ChargingSession[] {
+  if (!Array.isArray(sessions)) return [];
+  const map = new Map<string, ChargingSession>();
+  for (const s of sessions) {
+    if (!s) continue;
+
+    const key = s.id
+      ? `id:${s.id}`
+      : `noid:${s.pluggedTime || s.startChargeTime || s.createdDate || 0}:${
+          s.chargingStationName || ""
+        }:${s.createdDate || 0}`;
+    map.set(key, s);
+  }
+  return Array.from(map.values());
+}
+
+function hydrateOrGetCached(vin: string): VinCache | null {
+  if (!vin) return null;
+  hydrateCacheFromStorage();
+  return vinCacheMap.get(vin) || persistedCache[vin] || null;
+}
+
 function getCachedSessions(): ChargingSession[] | null {
   const vin = chargingHistoryStore.get().loadedVin;
   if (!vin) return null;
-  return vinCacheMap.get(vin)?.sessions || null;
+  return hydrateOrGetCached(vin)?.sessions || null;
 }
 
 // --- Public API ---
@@ -298,8 +413,8 @@ export function setFilterMonth(year: number, month: number) {
  *
  * - Per-VIN in-memory cache with 24h TTL
  * - Fetches page 0 first (size=100), then remaining pages in parallel
- * - Progressive: UI sees first batch immediately with smart default filter
- * - Recalculates totals after all pages are loaded
+ * - First page (100 records) is used for immediate default filter decision + quick render
+ * - Remaining pages preload in background to complete statistics
  */
 export async function fetchChargingSessions(
   vinCode?: string,
@@ -315,19 +430,19 @@ export async function fetchChargingSessions(
 
   // Check if VIN changed from what the store currently shows
   const currentLoadedVin = chargingHistoryStore.get().loadedVin;
-  const vinChanged = currentLoadedVin !== null && currentLoadedVin !== vin;
+  const vinChanged = currentLoadedVin !== vin;
 
   // Check per-VIN cache
-  const cached = vinCacheMap.get(vin);
+  const cached = hydrateOrGetCached(vin);
   if (
     !force &&
     cached &&
-    Date.now() - cached.fetchedAt < CACHE_TTL &&
-    cached.sessions.length > 0
+    Date.now() - cached.fetchedAt < CACHE_TTL
   ) {
     chargingHistoryStore.setKey("loadedVin", vin);
     chargingHistoryStore.setKey("totalRecords", cached.totalRecords);
     chargingHistoryStore.setKey("error", null);
+    chargingHistoryStore.setKey("warning", null);
     chargingHistoryStore.setKey("isLoading", false);
     chargingHistoryStore.setKey("isLoadingMore", false);
 
@@ -349,6 +464,13 @@ export async function fetchChargingSessions(
     return;
   }
 
+  const runningFetch = chargingHistoryFetchInFlight.get(vin);
+  if (runningFetch) {
+    await runningFetch;
+    api.vin = prevApiVin;
+    return;
+  }
+
   // Clear previous data when switching VINs for clean transition
   if (vinChanged) {
     chargingHistoryStore.setKey("sessions", []);
@@ -361,79 +483,96 @@ export async function fetchChargingSessions(
   chargingHistoryStore.setKey("isLoading", true);
   chargingHistoryStore.setKey("isLoadingMore", false);
   chargingHistoryStore.setKey("error", null);
+  chargingHistoryStore.setKey("warning", null);
   chargingHistoryStore.setKey("loadedVin", vin);
 
-  try {
-    const PAGE_SIZE = 100;
-    let allSessions: ChargingSession[] = [];
+  const fetchTask = (async () => {
+    try {
+      const PAGE_SIZE = 100;
 
-    // Page 0 — returns full JSON { data: ..., metadata?: ... }
-    const firstJson = await api.getChargingHistory(0, PAGE_SIZE);
+      const firstJson = await api.getChargingHistory(0, PAGE_SIZE);
+      const firstSessions: ChargingSession[] = extractSessions(firstJson);
+      const totalRecords = extractTotalRecords(firstJson, firstSessions.length);
 
-    // Extract sessions from various response structures
-    const firstSessions: ChargingSession[] = extractSessions(firstJson);
+      let allSessions: ChargingSession[] = [...firstSessions];
+      chargingHistoryStore.setKey("totalRecords", totalRecords);
 
-    // Extract totalRecords from various API response formats
-    const totalRecords = extractTotalRecords(firstJson, firstSessions.length);
+      const firstUniqueSessions = normalizeIdSet(firstSessions);
+      if (vinChanged) {
+        const smart = computeSmartDefault(firstUniqueSessions);
+        applyFilter(firstUniqueSessions, smart.mode, smart.year, smart.month);
+      } else {
+        const currentState = chargingHistoryStore.get();
+        applyFilter(
+          firstUniqueSessions,
+          currentState.filterMode,
+          currentState.selectedYear,
+          currentState.selectedMonth,
+        );
+      }
 
-    console.log(
-      `ChargingHistory [${vin}]: page 0 → ${firstSessions.length} sessions, total=${totalRecords}`,
-    );
+      // Show first 100 results immediately when entering tab.
+      chargingHistoryStore.setKey("isLoading", false);
 
-    allSessions = [...firstSessions];
-    chargingHistoryStore.setKey("totalRecords", totalRecords);
+      const totalPages = Math.max(1, Math.ceil(totalRecords / PAGE_SIZE));
+      if (totalPages > 1) {
+        chargingHistoryStore.setKey("isLoadingMore", true);
 
-    // Smart default filter: auto-select current year for first batch
-    const smart = computeSmartDefault(allSessions);
-    applyFilter(allSessions, smart.mode, smart.year, smart.month);
+        let failedPages = 0;
+        const remaining = Array.from({ length: totalPages - 1 }, (_, i) => i + 1);
+        const concurrency = 4;
+        for (let i = 0; i < remaining.length; i += concurrency) {
+          const batch = remaining.slice(i, i + concurrency);
+          const batchResults = await Promise.allSettled(
+            batch.map((page) => api.getChargingHistory(page, PAGE_SIZE)),
+          );
 
-    // Mark initial load complete — remaining pages load in background
-    chargingHistoryStore.setKey("isLoading", false);
+          for (const result of batchResults) {
+            if (result.status === "fulfilled") {
+              const sessions = extractSessions(result.value);
+              if (sessions.length) {
+                allSessions.push(...sessions);
+              }
+            } else {
+              failedPages += 1;
+            }
+          }
+        }
 
-    // Remaining pages in parallel
-    if (allSessions.length < totalRecords) {
-      chargingHistoryStore.setKey("isLoadingMore", true);
-
-      const totalPages = Math.ceil(totalRecords / PAGE_SIZE);
-      const remaining = Array.from(
-        { length: totalPages - 1 },
-        (_, i) => i + 1,
-      );
-
-      const results = await Promise.allSettled(
-        remaining.map((p) => api.getChargingHistory(p, PAGE_SIZE)),
-      );
-
-      for (const result of results) {
-        if (result.status === "fulfilled") {
-          const sessions = extractSessions(result.value);
-          allSessions = [...allSessions, ...sessions];
+        if (failedPages > 0) {
+          chargingHistoryStore.setKey(
+            "warning",
+            "Some pages failed to load. Results may be incomplete.",
+          );
         }
       }
 
-      // Re-read current filter state (user may have changed it while loading)
+      const uniqueSessions = normalizeIdSet(allSessions);
       const currentState = chargingHistoryStore.get();
       applyFilter(
-        allSessions,
+        uniqueSessions,
         currentState.filterMode,
         currentState.selectedYear,
         currentState.selectedMonth,
       );
 
+      setCachedData(vin, uniqueSessions, totalRecords);
+    } catch (e: any) {
+      console.error("Failed to fetch charging history:", e);
+      chargingHistoryStore.setKey("error", e.message || "Unknown error");
+    } finally {
+      chargingHistoryStore.setKey("isLoading", false);
       chargingHistoryStore.setKey("isLoadingMore", false);
     }
+  })();
 
-    // Persist cache
-    vinCacheMap.set(vin, {
-      sessions: allSessions,
-      totalRecords,
-      fetchedAt: Date.now(),
-    });
-  } catch (e: any) {
-    console.error("Failed to fetch charging history:", e);
-    chargingHistoryStore.setKey("error", e.message || "Unknown error");
+  chargingHistoryFetchInFlight.set(vin, fetchTask);
+  try {
+    await fetchTask;
   } finally {
-    chargingHistoryStore.setKey("isLoading", false);
-    chargingHistoryStore.setKey("isLoadingMore", false);
+    if (chargingHistoryFetchInFlight.get(vin) === fetchTask) {
+      chargingHistoryFetchInFlight.delete(vin);
+    }
+    api.vin = prevApiVin;
   }
 }

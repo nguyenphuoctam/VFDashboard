@@ -7,6 +7,8 @@ import {
 import staticAliasMap from "../config/static_alias_map.json";
 import { parseTelemetry } from "../utils/telemetryMapper";
 
+const SESSION_KEY = "vf_session";
+
 class VinFastAPI {
   constructor() {
     this.region = DEFAULT_REGION;
@@ -47,6 +49,49 @@ class VinFastAPI {
       `; path=/; SameSite=Lax${isHttps ? "; Secure" : ""}`;
   }
 
+  _readSessionFromStorage() {
+    if (typeof window === "undefined") return null;
+
+    try {
+      const raw = window.localStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+
+      const data = JSON.parse(raw);
+      if (!data || typeof data !== "object") {
+        window.localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+
+      if (data.expiresAt && data.expiresAt <= Date.now()) {
+        window.localStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+
+      return data;
+    } catch {
+      try {
+        window.localStorage.removeItem(SESSION_KEY);
+      } catch {
+        // ignore
+      }
+      return null;
+    }
+  }
+
+  _writeSessionToStorage(data) {
+    if (typeof window === "undefined") return;
+
+    try {
+      if (!data) {
+        window.localStorage.removeItem(SESSION_KEY);
+        return;
+      }
+      window.localStorage.setItem(SESSION_KEY, JSON.stringify(data));
+    } catch {
+      // ignore storage errors
+    }
+  }
+
   getCookie(name) {
     if (typeof document === "undefined") return null;
     const nameEQ = name + "=";
@@ -76,16 +121,22 @@ class VinFastAPI {
   saveSession() {
     if (typeof window === "undefined") return;
     try {
+      const ttlMs = this.rememberMe
+        ? 30 * 24 * 60 * 60 * 1000
+        : 12 * 60 * 60 * 1000;
+
       const data = {
         vin: this.vin,
         userId: this.userId,
         region: this.region,
         rememberMe: this.rememberMe,
         timestamp: Date.now(),
+        expiresAt: Date.now() + ttlMs,
       };
 
       // Metadata cookie matches RememberMe duration
       this.setCookie("vf_session", data, this.rememberMe ? 30 : null);
+      this._writeSessionToStorage(data);
     } catch (e) {
       console.error("Failed to save session", e);
     }
@@ -94,11 +145,15 @@ class VinFastAPI {
   restoreSession() {
     if (typeof window === "undefined") return;
     try {
-      const data = this.getCookie("vf_session");
+      const data = this.getCookie(SESSION_KEY) || this._readSessionFromStorage();
       if (data) {
         this.vin = data.vin;
         this.userId = data.userId;
         this.rememberMe = !!data.rememberMe;
+        if (data.expiresAt && data.expiresAt <= Date.now()) {
+          this.clearSession();
+          return;
+        }
         if (data.region) this.setRegion(data.region);
 
         this.isLoggedIn = true; // Optimistic
@@ -121,6 +176,7 @@ class VinFastAPI {
   clearSession() {
     if (typeof window === "undefined") return;
     this.deleteCookie("vf_session");
+    this._writeSessionToStorage(null);
     // Also trigger backend to clear HttpOnly cookies if needed?
     // Usually browser clears session cookies on close, but for explicit logout we might need an endpoint.
     // For now, client side just forgets metadata.

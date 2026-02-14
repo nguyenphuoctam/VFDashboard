@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { vehicleStore } from "../stores/vehicleStore";
 import {
@@ -142,8 +142,10 @@ function SessionCard({ session, maxEnergy, index }) {
 
   return (
     <div
-      className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-300 animate-in fade-in slide-in-from-bottom-2 ${hasIdleFee ? "border-orange-200" : "border-gray-100"}`}
-      style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
+      className={`bg-white rounded-2xl border p-4 shadow-sm hover:shadow-md transition-all duration-300 ${
+        index < 24 ? "animate-in fade-in slide-in-from-bottom-2" : ""
+      } ${hasIdleFee ? "border-orange-200" : "border-gray-100"}`}
+      style={index < 24 ? { animationDelay: `${Math.min(index * 30, 300)}ms` } : undefined}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
@@ -269,6 +271,7 @@ function SessionCard({ session, maxEnergy, index }) {
     </div>
   );
 }
+const MemoSessionCard = React.memo(SessionCard);
 
 // --- Inline filter bar: single-row with year → month drill-down ---
 function FilterBar({ store }) {
@@ -375,6 +378,7 @@ function AnimatedStat({ label, value, colorClass, bgClass }) {
 export default function ChargingHistory({ inline = false }) {
   const store = useStore(chargingHistoryStore);
   const { vin } = useStore(vehicleStore);
+  const [visibleCount, setVisibleCount] = useState(60);
 
   // Fetch whenever VIN changes (including mount)
   // VIN is passed explicitly so the store doesn't depend on api.vin timing
@@ -383,6 +387,10 @@ export default function ChargingHistory({ inline = false }) {
       fetchChargingSessions(vin);
     }
   }, [vin]);
+
+  useEffect(() => {
+    setVisibleCount(60);
+  }, [vin, store.filterMode, store.selectedYear, store.selectedMonth]);
 
   const safeSessions = Array.isArray(store.sessions) ? store.sessions : [];
 
@@ -437,6 +445,10 @@ export default function ChargingHistory({ inline = false }) {
   }, [safeSessions]);
 
   const isAnyLoading = store.isLoading || store.isLoadingMore;
+  const renderedSessions = inline
+    ? safeSessions
+    : safeSessions.slice(0, Math.min(visibleCount, safeSessions.length));
+  const hasMoreToRender = !inline && renderedSessions.length < safeSessions.length;
 
   return (
     <div className={inline ? "flex flex-col" : "flex flex-col h-full min-h-0"}>
@@ -527,6 +539,11 @@ export default function ChargingHistory({ inline = false }) {
           {store.error}
         </div>
       )}
+      {store.warning && !store.error && (
+        <div className="bg-amber-50 text-amber-800 text-sm p-3 rounded-xl mb-3 shrink-0">
+          {store.warning}
+        </div>
+      )}
 
       {/* Session list */}
       <div
@@ -534,14 +551,25 @@ export default function ChargingHistory({ inline = false }) {
           inline ? "space-y-3" : "flex-1 overflow-y-auto space-y-3 min-h-0 pr-1"
         }
       >
-        {safeSessions.map((session, index) => (
-          <SessionCard
+        {renderedSessions.map((session, index) => (
+          <MemoSessionCard
             key={session?.id || `session-${index}`}
             session={session}
             maxEnergy={maxEnergy}
             index={index}
           />
         ))}
+        {hasMoreToRender && (
+          <div className="pt-1 pb-2 flex justify-center">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((v) => v + 80)}
+              className="text-xs font-bold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-md px-3 py-1.5 transition-colors"
+            >
+              Show more sessions ({safeSessions.length - renderedSessions.length} left)
+            </button>
+          </div>
+        )}
 
         {/* Empty */}
         {!isAnyLoading && safeSessions.length === 0 && !store.error && (
