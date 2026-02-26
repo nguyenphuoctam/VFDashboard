@@ -44,6 +44,10 @@ Our goal is to create a UI that matches the premium quality of the car itself—
 - **Auth**: Auth0 OAuth2 with HttpOnly cookies (auto-detects localhost for local dev).
 - **Storage**: Cloudflare KV for crowdsourced telemetry aliases.
 
+## 🏗 System Architecture
+
+![System Architecture](docs/assets/system-architecture.svg)
+
 ## 🚀 Quick Start
 
 You can get the whole system running in minutes.
@@ -81,12 +85,8 @@ _Note: Requires Cloudflare authentication (`npx wrangler login`)._
 
 ## ⚠ Disclaimer
 
-**This software is not affiliated with, endorsed by, or connected to VinFast Auto or its subsidiaries.**  
+**This software is not affiliated with, endorsed by, or connected to VinFast Auto or its subsidiaries.**
 It is an unofficial, open-source project created by the community for educational and personal use. Use at your own risk.
-
-## 🏗 System Architecture
-
-![System Architecture](docs/assets/system-architecture.svg)
 
 ## 📸 Screenshots
 

@@ -230,7 +230,7 @@ export default function CarStatus() {
                           @{Math.round(numericTargetSoc)}%: {targetRangeEstimateKm} km
                         </p>
                       )}
-                      {fullRangeEstimateKm !== null && (
+                      {fullRangeEstimateKm !== null && numericSoc < 100 && (
                         <p className="mt-0.5 text-[8px] font-semibold leading-none text-blue-500">
                           @100%: {fullRangeEstimateKm} km
                         </p>
